@@ -2,91 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>QR Scan to Info</title>
-  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scan Info</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-  <div class="w-full max-w-md p-4 bg-white rounded-xl shadow-xl text-center">
-    <h2 class="text-xl font-semibold mb-4">Scan QR with Camera</h2>
-    <div id="reader" class="w-full mx-auto"></div>
-    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center z-50">
-      <div class="text-white text-lg animate-pulse">កំពុងដំណើរការ...</div>
-    </div>
-    <div id="customer-info" class="mt-4 hidden">
-      <h3 class="font-bold text-lg mb-2">🔍 លទ្ធផល:</h3>
-      <div id="info-output" class="text-left text-sm"></div>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex items-center justify-center p-4">
+
+  <!-- Overlay loading -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="text-white text-xl">កំពុងផ្ទុក...</div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-md text-center" id="customerInfoBox">
+    <h1 class="text-xl font-bold mb-4">ព័ត៌មានអតិថិជន</h1>
+    <div id="customerContent" class="space-y-2">
+      <p class="text-sm text-gray-600">កំពុងទាញទិន្នន័យ...</p>
     </div>
   </div>
 
   <script>
-    function extractIDfromURL(url) {
-      const match = url.match(/\?id=([^&]+)/);
-      return match ? match[1] : null;
-    }
-
-    function showLoading(show) {
-      document.getElementById("loading-overlay").classList.toggle("hidden", !show);
-    }
-
-    function showCustomerInfo(data) {
-      const output = document.getElementById("info-output");
-      const container = document.getElementById("customer-info");
-      output.innerHTML = `
-        <div><strong>លេខកូដ:</strong> ${data.id}</div>
-        <div><strong>ឈ្មោះ:</strong> ${data.name}</div>
-        <div><strong>បន្ទប់:</strong> ${data.room}</div>
-        <div><strong>ទូរស័ព្ទ:</strong> ${data.phone} ${data.phone2 ? ' / ' + data.phone2 : ''}</div>
-      `;
-      container.classList.remove("hidden");
-    }
-
-    async function fetchCustomerInfo(id) {
-      try {
-        showLoading(true);
-        const doc = await firebase.firestore().collection("customers").doc(id).get();
-        showLoading(false);
-        if (doc.exists) {
-          showCustomerInfo({ id, ...doc.data() });
-        } else {
-          alert("❌ មិនមានទិន្នន័យសម្រាប់ ID: " + id);
-        }
-      } catch (error) {
-        showLoading(false);
-        alert("មានបញ្ហា!" + error);
-      }
-    }
-
-    // QR Scanner Init
-    const html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 10, qrbox: 250 };
-
-    Html5Qrcode.getCameras().then(devices => {
-      if (devices && devices.length) {
-        const cameraId = devices[0].id;
-        html5QrCode.start(
-          cameraId,
-          config,
-          (decodedText) => {
-            html5QrCode.stop();
-            const id = extractIDfromURL(decodedText);
-            if (id) {
-              fetchCustomerInfo(id);
-            } else {
-              alert("QR មិនត្រឹមត្រូវទេ!");
-            }
-          },
-          error => {}
-        );
-      }
-    }).catch(err => alert("មិនរកឃើញកាមេរា: " + err));
-  </script>
-
-  <!-- Firebase Init -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script>
+    // ✅ Firebase Config (REPLACE with your own Firebase project config)
     const firebaseConfig = {
       apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
   authDomain: "home-invoice-e1f43.firebaseapp.com",
@@ -96,7 +34,62 @@
   messagingSenderId: "243294137874",
   appId: "1:243294137874:web:8bdc0aab16ca58f4d932cb",
     };
+
+    // ✅ Init Firebase
     firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // ✅ Show loading overlay
+    function showLoading(show = true) {
+      document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
+    }
+
+    // ✅ Get ID from URL param
+    function getCustomerIDFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("id") || null;
+    }
+
+    // ✅ Show customer data in UI
+    function renderCustomer(data) {
+      const content = document.getElementById("customerContent");
+      content.innerHTML = `
+        <p><strong>ឈ្មោះ:</strong> ${data.name || "N/A"}</p>
+        <p><strong>លេខបន្ទប់:</strong> ${data.room || "N/A"}</p>
+        <p><strong>ទូរស័ព្ទ:</strong> ${data.phone || "N/A"}</p>
+        ${data.phone2 ? `<p><strong>ទូរស័ព្ទ 2:</strong> ${data.phone2}</p>` : ""}
+        <p class="text-sm text-gray-400">ID: ${data.id}</p>
+      `;
+    }
+
+    // ✅ Load from Firebase
+    async function loadCustomerInfo(customerID) {
+      if (!customerID) {
+        document.getElementById("customerContent").innerHTML = `<p class="text-red-500">❌ មិនមាន ID</p>`;
+        return;
+      }
+
+      showLoading(true);
+      try {
+        const doc = await db.collection("customers").doc(customerID).get();
+        if (doc.exists) {
+          renderCustomer({ id: customerID, ...doc.data() });
+        } else {
+          document.getElementById("customerContent").innerHTML = `<p class="text-red-500">❌ មិនមានអតិថិជននេះទេ</p>`;
+        }
+      } catch (error) {
+        console.error("Error loading:", error);
+        document.getElementById("customerContent").innerHTML = `<p class="text-red-500">❌ បរាជ័យក្នុងការទាញទិន្នន័យ</p>`;
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // ✅ Run on page load
+    window.addEventListener("DOMContentLoaded", () => {
+      const id = getCustomerIDFromURL();
+      loadCustomerInfo(id);
+    });
   </script>
 </body>
 </html>
