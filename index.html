@@ -119,24 +119,25 @@
   let videoStream = null;
 
   // Audio elements for success and error
-  const audioSuccess = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
-  const audioError = new Audio("https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg");
+  // ប្ដូរ URL ទៅសំឡេងខ្មែរ
+const audioSuccess = new Audio("sounds/success-khmer.mp3");
+const audioError = new Audio("sounds/error-khmer.mp3");
 
-  function playSuccessSound() {
-    audioSuccess.play().catch(() => {});
-  }
-  function playErrorSound() {
-    audioError.play().catch(() => {});
-  }
 
-  function showLoading(show = true) {
-    loadingOverlay.style.display = show ? "flex" : "none";
-  }
+ function speak(text) {
+  const msg = new SpeechSynthesisUtterance(text);
+  msg.lang = 'km-KH';
+  speechSynthesis.speak(msg);
+}
 
-  function getIDfromURL() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("id");
-  }
+// តម្លៃកន្លែង success/error
+function playSuccessSound() {
+  speak("អានបានជោគជ័យ");
+}
+function playErrorSound() {
+  speak("សូមព្យាយាមម្តងទៀត");
+}
+
 
   function renderCustomer(data) {
     customerContent.innerHTML = `
