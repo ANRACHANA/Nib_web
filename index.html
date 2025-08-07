@@ -8,10 +8,13 @@
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <style>
     ::-webkit-scrollbar {
       width: 6px;
@@ -96,7 +99,7 @@
   </div>
 
 <script>
-  // Firebase config (replace with your config)
+  // 1. Firebase config (ប្តូរទៅ config របស់អ្នក)
   const firebaseConfig = {
     apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
     authDomain: "home-invoice-e1f43.firebaseapp.com",
@@ -105,6 +108,7 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
+  // 2. Elements
   const loadingOverlay = document.getElementById("loadingOverlay");
   const customerContent = document.getElementById("customerContent");
   const actionButtons = document.getElementById("actionButtons");
@@ -118,26 +122,25 @@
   let scanning = false;
   let videoStream = null;
 
-  // Audio elements for success and error
-  // ប្ដូរ URL ទៅសំឡេងខ្មែរ
-const audioSuccess = new Audio("sounds/success-khmer.mp3");
-const audioError = new Audio("sounds/error-khmer.mp3");
+  // 3. Audio Khmer Success/Error
+  const audioSuccess = new Audio("sounds/success-khmer.mp3"); // Upload sounds folder with these mp3s
+  const audioError = new Audio("sounds/error-khmer.mp3");
 
+  function playSuccessSound() {
+    audioSuccess.play().catch(() => {});
+  }
+  function playErrorSound() {
+    audioError.play().catch(() => {});
+  }
 
- function speak(text) {
-  const msg = new SpeechSynthesisUtterance(text);
-  msg.lang = 'km-KH';
-  speechSynthesis.speak(msg);
-}
+  function showLoading(show = true) {
+    loadingOverlay.style.display = show ? "flex" : "none";
+  }
 
-// តម្លៃកន្លែង success/error
-function playSuccessSound() {
-  speak("អានបានជោគជ័យ");
-}
-function playErrorSound() {
-  speak("សូមព្យាយាមម្តងទៀត");
-}
-
+  function getIDfromURL() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("id");
+  }
 
   function renderCustomer(data) {
     customerContent.innerHTML = `
@@ -223,7 +226,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     doc.save(`Customer_${currentCustomer.id}.pdf`);
   }
 
-  // Event bindings
+  // Button events
   printBtn.addEventListener("click", printCustomerInfo);
   pdfBtn.addEventListener("click", downloadPDF);
 
@@ -233,12 +236,11 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
       alert("សូមបញ្ចូលលេខ ID មុនពេលស្វែងរក");
       return;
     }
-    // Set URL param + reload page or just load customer
     history.replaceState(null, '', `?id=${encodeURIComponent(id)}`);
     loadCustomer(id);
   });
 
-  // QR Upload
+  // QR Upload event
   document.getElementById("qr-upload").addEventListener("change", e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -259,9 +261,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, canvas.width, canvas.height);
         if (code && code.data) {
-          // Extract ID param if URL or direct ID
           let scannedData = code.data.trim();
-          // If URL format: https://anrachana.github.io/Nib_web/?id=XXXXX
           try {
             const url = new URL(scannedData);
             if (url.searchParams.has("id")) {
@@ -270,7 +270,6 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
           } catch {}
 
           customerIdInput.value = scannedData;
-          // Update URL param
           history.replaceState(null, '', `?id=${encodeURIComponent(scannedData)}`);
           loadCustomer(scannedData);
         } else {
@@ -283,9 +282,9 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     reader.readAsDataURL(file);
   });
 
-  // QR Live Scan
+  // QR Live Scan event
   document.getElementById("btnScan").addEventListener("click", async () => {
-    if (scanning) return; // already scanning
+    if (scanning) return;
 
     try {
       videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -314,7 +313,6 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
               videoStream = null;
             }
 
-            // Extract ID param if URL or direct ID
             let scannedData = code.data.trim();
             try {
               const url = new URL(scannedData);
@@ -340,7 +338,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     }
   });
 
-  // On page load auto get ID from URL and load customer
+  // On load - load customer if URL has id param
   window.addEventListener("DOMContentLoaded", () => {
     const id = getIDfromURL();
     if (id) {
