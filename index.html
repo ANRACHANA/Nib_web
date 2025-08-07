@@ -1,95 +1,343 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="km" >
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Scan Info</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ព័ត៌មានអតិថិជន + QR Scan</title>
+  
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f0f0f0;
+    }
+    ::-webkit-scrollbar-thumb {
+      background-color: #2563eb;
+      border-radius: 3px;
+    }
+    #qr-video {
+      border-radius: 1rem;
+      width: 100%;
+      max-height: 280px;
+      object-fit: cover;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      margin-top: 1rem;
+      display: none;
+    }
+    #upload-preview {
+      max-width: 100%;
+      border-radius: 1rem;
+      margin-top: 1rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      display: none;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-800 min-h-screen flex items-center justify-center p-4">
+<body class="bg-gradient-to-tr from-blue-50 to-indigo-100 min-h-screen flex flex-col justify-center items-center p-4">
 
-  <!-- Overlay loading -->
-  <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="text-white text-xl">កំពុងផ្ទុក...</div>
-  </div>
+  <div class="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 flex flex-col items-center">
 
-  <!-- Main Container -->
-  <div class="bg-white rounded-lg shadow-lg p-6 w-full max-w-md text-center" id="customerInfoBox">
-    <h1 class="text-xl font-bold mb-4">ព័ត៌មានអតិថិជន</h1>
-    <div id="customerContent" class="space-y-2">
-      <p class="text-sm text-gray-600">កំពុងទាញទិន្នន័យ...</p>
+    <h1 class="text-3xl font-extrabold text-blue-700 mb-6 text-center">ព័ត៌មានអតិថិជន</h1>
+
+    <div class="w-full flex flex-col space-y-3">
+      <input id="customer-id" type="text" placeholder="សូមបញ្ចូលលេខ ID ឬ Scan QR" autocomplete="off"
+        class="rounded-xl border border-gray-300 px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+      <div class="flex gap-4 flex-wrap justify-center">
+        <button id="btnSearch" class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-xl font-semibold shadow-md transition">
+          🔍 ស្វែងរក
+        </button>
+
+        <button id="btnScan" class="bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-8 rounded-xl font-semibold shadow-md transition">
+          📷 Scan QR
+        </button>
+
+        <label for="qr-upload" class="bg-green-600 hover:bg-green-700 cursor-pointer text-white py-3 px-6 rounded-xl font-semibold shadow-md transition flex items-center gap-2 select-none">
+          📁 Upload QR
+        </label>
+        <input id="qr-upload" type="file" accept="image/*" class="hidden" />
+      </div>
+    </div>
+
+    <video id="qr-video" autoplay muted playsinline></video>
+    <img id="upload-preview" alt="Preview QR upload image" />
+
+    <div id="customerContent" class="w-full mt-6 text-gray-700 min-h-[160px] text-lg leading-relaxed select-text p-4 rounded-xl bg-indigo-50 shadow-inner">
+      <p class="text-center text-gray-400 italic">សូមស្វែងរកព័ត៌មានអតិថិជន</p>
+    </div>
+
+    <div id="actionButtons" class="mt-8 w-full flex justify-center gap-6 hidden">
+      <button id="printBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl shadow-md font-semibold transition" aria-label="បោះពុម្ព">
+        🖨️ បោះពុម្ព
+      </button>
+      <button id="pdfBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl shadow-md font-semibold transition" aria-label="ទាញយក PDF">
+        ⬇️ ទាញយក PDF
+      </button>
     </div>
   </div>
 
-  <script>
-    // ✅ Firebase Config (REPLACE with your own Firebase project config)
-    const firebaseConfig = {
-      apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
+  <!-- Loading overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
+    <div class="flex flex-col items-center space-y-4 text-white font-semibold text-lg">
+      <svg class="animate-spin h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+      </svg>
+      <div>កំពុងផ្ទុក...</div>
+    </div>
+  </div>
+
+<script>
+  // Firebase config (replace with your config)
+  const firebaseConfig = {
+    apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
   authDomain: "home-invoice-e1f43.firebaseapp.com",
-  databaseURL: "https://home-invoice-e1f43-default-rtdb.firebaseio.com",
-  projectId: "home-invoice-e1f43",
-  storageBucket: "home-invoice-e1f43.appspot.com",  // <-- ចំណាំទីនេះ
-  messagingSenderId: "243294137874",
-  appId: "1:243294137874:web:8bdc0aab16ca58f4d932cb",
-    };
+    projectId: "home-invoice-e1f43",
+  };
 
-    // ✅ Init Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
 
-    // ✅ Show loading overlay
-    function showLoading(show = true) {
-      document.getElementById("loadingOverlay").style.display = show ? "flex" : "none";
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const loadingOverlay = document.getElementById("loadingOverlay");
+  const customerContent = document.getElementById("customerContent");
+  const actionButtons = document.getElementById("actionButtons");
+  const printBtn = document.getElementById("printBtn");
+  const pdfBtn = document.getElementById("pdfBtn");
+  const customerIdInput = document.getElementById("customer-id");
+  const qrVideo = document.getElementById("qr-video");
+  const uploadPreview = document.getElementById("upload-preview");
+
+  let currentCustomer = null;
+  let scanning = false;
+  let videoStream = null;
+
+  function showLoading(show = true) {
+    loadingOverlay.style.display = show ? "flex" : "none";
+  }
+
+  function getIDfromURL() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("id");
+  }
+
+  function renderCustomer(data) {
+    customerContent.innerHTML = `
+      <p><span class="font-bold">អត្តសញ្ញាណ:</span> ${data.id || "-"}</p>
+      <p><span class="font-bold">ឈ្មោះ:</span> ${data.name || "-"}</p>
+      <p><span class="font-bold">លេខបន្ទប់:</span> ${data.room || "-"}</p>
+      <p><span class="font-bold">ទូរស័ព្ទ:</span> ${data.phone || "-"}</p>
+      ${data.phone2 ? `<p><span class="font-bold">ទូរស័ព្ទ 2:</span> ${data.phone2}</p>` : ""}
+    `;
+    actionButtons.classList.remove("hidden");
+    currentCustomer = data;
+  }
+
+  async function loadCustomer(id) {
+    if (!id) {
+      customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ មិនមាន ID នៅក្នុង URL</p>`;
+      actionButtons.classList.add("hidden");
+      return;
     }
-
-    // ✅ Get ID from URL param
-    function getCustomerIDFromURL() {
-      const params = new URLSearchParams(window.location.search);
-      return params.get("id") || null;
-    }
-
-    // ✅ Show customer data in UI
-    function renderCustomer(data) {
-      const content = document.getElementById("customerContent");
-      content.innerHTML = `
-        <p><strong>ឈ្មោះ:</strong> ${data.name || "N/A"}</p>
-        <p><strong>លេខបន្ទប់:</strong> ${data.room || "N/A"}</p>
-        <p><strong>ទូរស័ព្ទ:</strong> ${data.phone || "N/A"}</p>
-        ${data.phone2 ? `<p><strong>ទូរស័ព្ទ 2:</strong> ${data.phone2}</p>` : ""}
-        <p class="text-sm text-gray-400">ID: ${data.id}</p>
-      `;
-    }
-
-    // ✅ Load from Firebase
-    async function loadCustomerInfo(customerID) {
-      if (!customerID) {
-        document.getElementById("customerContent").innerHTML = `<p class="text-red-500">❌ មិនមាន ID</p>`;
-        return;
+    showLoading(true);
+    try {
+      const doc = await db.collection("customers").doc(id).get();
+      if (doc.exists) {
+        renderCustomer({ id, ...doc.data() });
+      } else {
+        customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ មិនមានអតិថិជននេះទេ</p>`;
+        actionButtons.classList.add("hidden");
       }
+    } catch (e) {
+      console.error(e);
+      customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ កើតមានកំហុសក្នុងការទាញទិន្នន័យ</p>`;
+      actionButtons.classList.add("hidden");
+    } finally {
+      showLoading(false);
+    }
+  }
 
-      showLoading(true);
-      try {
-        const doc = await db.collection("customers").doc(customerID).get();
-        if (doc.exists) {
-          renderCustomer({ id: customerID, ...doc.data() });
+  function printCustomerInfo() {
+    if (!currentCustomer) {
+      alert("សូមទាញយកព័ត៌មានអតិថិជនមុនពេលបោះពុម្ព");
+      return;
+    }
+    const win = window.open("", "", "width=600,height=400");
+    win.document.write("<html><head><title>បោះពុម្ពព័ត៌មានអតិថិជន</title></head><body>");
+    win.document.write(`<pre style="font-family: Kanit, sans-serif; font-size: 18px; padding: 20px;">
+អត្តសញ្ញាណ: ${currentCustomer.id}
+ឈ្មោះ: ${currentCustomer.name || '-'}
+លេខបន្ទប់: ${currentCustomer.room || '-'}
+ទូរស័ព្ទ: ${currentCustomer.phone || '-'}
+${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phone2 : ''}
+</pre>`);
+    win.document.write("</body></html>");
+    win.document.close();
+    win.focus();
+    win.print();
+    win.close();
+  }
+
+  async function downloadPDF() {
+    if (!currentCustomer) {
+      alert("សូមទាញយកព័ត៌មានអតិថិជនមុនពេលទាញយក PDF");
+      return;
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.text("ព័ត៌មានអតិថិជន", 20, 20);
+
+    doc.setFontSize(14);
+    doc.text(`អត្តសញ្ញាណ: ${currentCustomer.id}`, 20, 40);
+    doc.text(`ឈ្មោះ: ${currentCustomer.name || '-'}`, 20, 50);
+    doc.text(`លេខបន្ទប់: ${currentCustomer.room || '-'}`, 20, 60);
+    doc.text(`ទូរស័ព្ទ: ${currentCustomer.phone || '-'}`, 20, 70);
+    if(currentCustomer.phone2) {
+      doc.text(`ទូរស័ព្ទ 2: ${currentCustomer.phone2}`, 20, 80);
+    }
+
+    doc.save(`Customer_${currentCustomer.id}.pdf`);
+  }
+
+  // Event bindings
+  printBtn.addEventListener("click", printCustomerInfo);
+  pdfBtn.addEventListener("click", downloadPDF);
+
+  document.getElementById("btnSearch").addEventListener("click", () => {
+    const id = customerIdInput.value.trim();
+    if (!id) {
+      alert("សូមបញ្ចូលលេខ ID មុនពេលស្វែងរក");
+      return;
+    }
+    // Set URL param + reload page or just load customer
+    history.replaceState(null, '', `?id=${encodeURIComponent(id)}`);
+    loadCustomer(id);
+  });
+
+  // QR Upload
+  document.getElementById("qr-upload").addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        uploadPreview.src = img.src;
+        uploadPreview.style.display = "block";
+
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, canvas.width, canvas.height);
+        if (code && code.data) {
+          // Extract ID param if URL or direct ID
+          let scannedData = code.data.trim();
+          // If URL format: https://anrachana.github.io/Nib_web/?id=XXXXX
+          try {
+            const url = new URL(scannedData);
+            if (url.searchParams.has("id")) {
+              scannedData = url.searchParams.get("id");
+            }
+          } catch {}
+
+          customerIdInput.value = scannedData;
+          // Update URL param
+          history.replaceState(null, '', `?id=${encodeURIComponent(scannedData)}`);
+          loadCustomer(scannedData);
         } else {
-          document.getElementById("customerContent").innerHTML = `<p class="text-red-500">❌ មិនមានអតិថិជននេះទេ</p>`;
+          alert("មិនអាចអាន QR បានទេ");
         }
-      } catch (error) {
-        console.error("Error loading:", error);
-        document.getElementById("customerContent").innerHTML = `<p class="text-red-500">❌ បរាជ័យក្នុងការទាញទិន្នន័យ</p>`;
-      } finally {
-        showLoading(false);
-      }
-    }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 
-    // ✅ Run on page load
-    window.addEventListener("DOMContentLoaded", () => {
-      const id = getCustomerIDFromURL();
-      loadCustomerInfo(id);
-    });
-  </script>
+  // QR Live Scan
+  document.getElementById("btnScan").addEventListener("click", async () => {
+    if (scanning) return; // already scanning
+
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      qrVideo.srcObject = videoStream;
+      qrVideo.style.display = "block";
+      scanning = true;
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const scanLoop = () => {
+        if (!scanning) return;
+        if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
+          canvas.width = qrVideo.videoWidth;
+          canvas.height = qrVideo.videoHeight;
+          ctx.drawImage(qrVideo, 0, 0, canvas.width, canvas.height);
+
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, canvas.width, canvas.height);
+
+          if (code && code.data) {
+            scanning = false;
+            qrVideo.style.display = "none";
+            if (videoStream) {
+              videoStream.getTracks().forEach(track => track.stop());
+              videoStream = null;
+            }
+
+            // Extract ID param if URL or direct ID
+            let scannedData = code.data.trim();
+            try {
+              const url = new URL(scannedData);
+              if (url.searchParams.has("id")) {
+                scannedData = url.searchParams.get("id");
+              }
+            } catch {}
+
+            customerIdInput.value = scannedData;
+            history.replaceState(null, '', `?id=${encodeURIComponent(scannedData)}`);
+            loadCustomer(scannedData);
+            return;
+          }
+        }
+        requestAnimationFrame(scanLoop);
+      };
+
+      requestAnimationFrame(scanLoop);
+    } catch (err) {
+      alert("មិនអាចចូលប្រើកាមេរ៉ា");
+      console.error(err);
+    }
+  });
+
+  // On page load auto get ID from URL and load customer
+  window.addEventListener("DOMContentLoaded", () => {
+    const id = getIDfromURL();
+    if (id) {
+      customerIdInput.value = id;
+      loadCustomer(id);
+    } else {
+      customerContent.innerHTML = `<p class="text-gray-400 text-center italic">សូមស្វែងរកព័ត៌មានអតិថិជន</p>`;
+      actionButtons.classList.add("hidden");
+    }
+  });
+
+</script>
+
 </body>
 </html>
