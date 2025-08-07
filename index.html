@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ព័ត៌មានអតិថិជន + QR Scan</title>
+  <title>ព័ត៌មានអតិថិជន + QR Scan + សំឡេង</title>
   
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -99,12 +99,9 @@
   // Firebase config (replace with your config)
   const firebaseConfig = {
     apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
-  authDomain: "home-invoice-e1f43.firebaseapp.com",
-    projectId: "home-invoice-e1f43",
+    authDomain: "home-invoice-e1f43.firebaseapp.com",
+    projectId: "home-invoice-e1f43"
   };
-
-
-
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
@@ -120,6 +117,17 @@
   let currentCustomer = null;
   let scanning = false;
   let videoStream = null;
+
+  // Audio elements for success and error
+  const audioSuccess = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+  const audioError = new Audio("https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg");
+
+  function playSuccessSound() {
+    audioSuccess.play().catch(() => {});
+  }
+  function playErrorSound() {
+    audioError.play().catch(() => {});
+  }
 
   function showLoading(show = true) {
     loadingOverlay.style.display = show ? "flex" : "none";
@@ -140,12 +148,14 @@
     `;
     actionButtons.classList.remove("hidden");
     currentCustomer = data;
+    playSuccessSound();
   }
 
   async function loadCustomer(id) {
     if (!id) {
       customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ មិនមាន ID នៅក្នុង URL</p>`;
       actionButtons.classList.add("hidden");
+      playErrorSound();
       return;
     }
     showLoading(true);
@@ -156,11 +166,13 @@
       } else {
         customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ មិនមានអតិថិជននេះទេ</p>`;
         actionButtons.classList.add("hidden");
+        playErrorSound();
       }
     } catch (e) {
       console.error(e);
       customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ កើតមានកំហុសក្នុងការទាញទិន្នន័យ</p>`;
       actionButtons.classList.add("hidden");
+      playErrorSound();
     } finally {
       showLoading(false);
     }
@@ -262,6 +274,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
           loadCustomer(scannedData);
         } else {
           alert("មិនអាចអាន QR បានទេ");
+          playErrorSound();
         }
       };
       img.src = reader.result;
@@ -322,6 +335,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     } catch (err) {
       alert("មិនអាចចូលប្រើកាមេរ៉ា");
       console.error(err);
+      playErrorSound();
     }
   });
 
