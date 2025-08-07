@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="km" >
+<html lang="km">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -8,13 +8,10 @@
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  
-  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
+  
   <style>
     ::-webkit-scrollbar {
       width: 6px;
@@ -99,7 +96,7 @@
   </div>
 
 <script>
-  // 1. Firebase config (ប្តូរទៅ config របស់អ្នក)
+  // Firebase config (replace with your own config)
   const firebaseConfig = {
     apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
     authDomain: "home-invoice-e1f43.firebaseapp.com",
@@ -108,7 +105,6 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
-  // 2. Elements
   const loadingOverlay = document.getElementById("loadingOverlay");
   const customerContent = document.getElementById("customerContent");
   const actionButtons = document.getElementById("actionButtons");
@@ -122,15 +118,24 @@
   let scanning = false;
   let videoStream = null;
 
-  // 3. Audio Khmer Success/Error
-  const audioSuccess = new Audio("sounds/success-khmer.mp3"); // Upload sounds folder with these mp3s
-  const audioError = new Audio("sounds/error-khmer.mp3");
+  // Khmer TTS success/error sound function
+  function speakKhmer(text) {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'km-KH';
+      // Optional voice selection for Khmer if available
+      const voices = speechSynthesis.getVoices();
+      const kmVoice = voices.find(v => v.lang.startsWith('km'));
+      if (kmVoice) utterance.voice = kmVoice;
+      speechSynthesis.speak(utterance);
+    }
+  }
 
   function playSuccessSound() {
-    audioSuccess.play().catch(() => {});
+    speakKhmer("អានបានជោគជ័យ");
   }
   function playErrorSound() {
-    audioError.play().catch(() => {});
+    speakKhmer("សូមព្យាយាមម្តងទៀត");
   }
 
   function showLoading(show = true) {
@@ -226,7 +231,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     doc.save(`Customer_${currentCustomer.id}.pdf`);
   }
 
-  // Button events
+  // Event bindings
   printBtn.addEventListener("click", printCustomerInfo);
   pdfBtn.addEventListener("click", downloadPDF);
 
@@ -234,13 +239,14 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     const id = customerIdInput.value.trim();
     if (!id) {
       alert("សូមបញ្ចូលលេខ ID មុនពេលស្វែងរក");
+      playErrorSound();
       return;
     }
     history.replaceState(null, '', `?id=${encodeURIComponent(id)}`);
     loadCustomer(id);
   });
 
-  // QR Upload event
+  // QR Upload
   document.getElementById("qr-upload").addEventListener("change", e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -282,7 +288,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     reader.readAsDataURL(file);
   });
 
-  // QR Live Scan event
+  // QR Live Scan
   document.getElementById("btnScan").addEventListener("click", async () => {
     if (scanning) return;
 
@@ -338,7 +344,7 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     }
   });
 
-  // On load - load customer if URL has id param
+  // On page load auto get ID from URL and load customer
   window.addEventListener("DOMContentLoaded", () => {
     const id = getIDfromURL();
     if (id) {
@@ -349,7 +355,6 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
       actionButtons.classList.add("hidden");
     }
   });
-
 </script>
 
 </body>
