@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="km">
+<html lang="km" >
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -96,7 +96,7 @@
   </div>
 
 <script>
-  // Firebase config (replace with your own config)
+  // Firebase config (replace with your own Firebase config)
   const firebaseConfig = {
     apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
     authDomain: "home-invoice-e1f43.firebaseapp.com",
@@ -118,24 +118,15 @@
   let scanning = false;
   let videoStream = null;
 
-  // Khmer TTS success/error sound function
-  function speakKhmer(text) {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'km-KH';
-      // Optional voice selection for Khmer if available
-      const voices = speechSynthesis.getVoices();
-      const kmVoice = voices.find(v => v.lang.startsWith('km'));
-      if (kmVoice) utterance.voice = kmVoice;
-      speechSynthesis.speak(utterance);
-    }
-  }
+  // Sounds (replace URLs or local files as needed)
+  const audioSuccess = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+  const audioError = new Audio("https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg");
 
   function playSuccessSound() {
-    speakKhmer("អានបានជោគជ័យ");
+    audioSuccess.play().catch(() => {});
   }
   function playErrorSound() {
-    speakKhmer("សូមព្យាយាមម្តងទៀត");
+    audioError.play().catch(() => {});
   }
 
   function showLoading(show = true) {
@@ -239,7 +230,6 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     const id = customerIdInput.value.trim();
     if (!id) {
       alert("សូមបញ្ចូលលេខ ID មុនពេលស្វែងរក");
-      playErrorSound();
       return;
     }
     history.replaceState(null, '', `?id=${encodeURIComponent(id)}`);
@@ -288,9 +278,9 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
     reader.readAsDataURL(file);
   });
 
-  // QR Live Scan
+  // QR Live Scan with scanning line animation
   document.getElementById("btnScan").addEventListener("click", async () => {
-    if (scanning) return;
+    if (scanning) return; // already scanning
 
     try {
       videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -303,10 +293,22 @@ ${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phon
 
       const scanLoop = () => {
         if (!scanning) return;
+
         if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
           canvas.width = qrVideo.videoWidth;
           canvas.height = qrVideo.videoHeight;
           ctx.drawImage(qrVideo, 0, 0, canvas.width, canvas.height);
+
+          // Draw scanning line animation
+          const time = Date.now() / 10;
+          const lineY = (time % canvas.height);
+
+          ctx.strokeStyle = "rgba(0, 123, 255, 0.7)";
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(0, lineY);
+          ctx.lineTo(canvas.width, lineY);
+          ctx.stroke();
 
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, canvas.width, canvas.height);
