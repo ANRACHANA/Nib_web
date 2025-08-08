@@ -1,102 +1,205 @@
 <!DOCTYPE html>
-<html lang="km" >
+<html lang="km">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ព័ត៌មានអតិថិជន + QR Scan + សំឡេង</title>
-  
-  <!-- Tailwind CDN -->
+  <title>Invoice Lookup by CustomerID + QR Scan + Chart</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    ::-webkit-scrollbar {
-      width: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #f0f0f0;
-    }
-    ::-webkit-scrollbar-thumb {
-      background-color: #2563eb;
-      border-radius: 3px;
-    }
+    body {
+    font-family: 'Khmer OS', 'Khmer OS System', 'Khmer OS Content', Arial, sans-serif;
+  }
     #qr-video {
-      border-radius: 1rem;
       width: 100%;
       max-height: 280px;
-      object-fit: cover;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-      margin-top: 1rem;
-      display: none;
-    }
-    #upload-preview {
-      max-width: 100%;
       border-radius: 1rem;
-      margin-top: 1rem;
       box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      margin-top: 1rem;
       display: none;
+      object-fit: cover;
+    }
+    #invoice-table tbody tr:hover {
+      background-color: #bfdbfe;
+      cursor: pointer;
+    }
+
+    /* Modal styles */
+    #invoice-modal {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #invoice-modal .modal-content {
+      background: white;
+      border-radius: 1rem;
+      max-width: 600px;
+      width: 90%;
+      padding: 1.5rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      position: relative;
+    }
+    #invoice-modal .close-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 1rem;
+      font-size: 2rem;
+      color: #555;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #invoice-modal .close-btn:hover {
+      color: #111;
     }
   </style>
 </head>
-<body class="bg-gradient-to-tr from-blue-50 to-indigo-100 min-h-screen flex flex-col justify-center items-center p-4">
+<body class="bg-blue-50 min-h-screen flex flex-col justify-center items-center p-4">
 
-  <div class="bg-white rounded-3xl shadow-xl max-w-md w-full p-6 flex flex-col items-center">
+  <div class="bg-white rounded-3xl shadow-xl max-w-4xl w-full p-6 flex flex-col items-center">
+    <h4 class="text-3xl font-extrabold text-blue-700 mb-6 text-center">Invoice តាម CustomerID</h4>
 
-    <h1 class="text-3xl font-extrabold text-blue-700 mb-6 text-center">ព័ត៌មានអតិថិជន</h1>
+   <input id="customer-id" type="text" placeholder=" Customer ID ឬ Scan QR" autocomplete="off" readonly
+  class="rounded-xl border border-blue-500 bg-gray-100 text-gray-900 px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-md placeholder-gray-500" />
 
-    <div class="w-full flex flex-col space-y-3">
-      <input id="customer-id" type="text" placeholder="សូមបញ្ចូលលេខ ID ឬ Scan QR" autocomplete="off"
-        class="rounded-xl border border-gray-300 px-4 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
-      <div class="flex gap-4 flex-wrap justify-center">
-        <button id="btnSearch" class="bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-xl font-semibold shadow-md transition">
-          🔍 ស្វែងរក
-        </button>
 
-        <button id="btnScan" class="bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-8 rounded-xl font-semibold shadow-md transition">
-          📷 Scan QR
-        </button>
+    <div class="flex gap-4 mt-4">
+      <button id="btnSearch"
+        >
+      
+      </button>
+      <button id="btnScan"
+        class="bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-8 rounded-xl font-semibold shadow-md transition">
+        📷 Scan QR
+      </button>
 
-        <label for="qr-upload" class="bg-green-600 hover:bg-green-700 cursor-pointer text-white py-3 px-6 rounded-xl font-semibold shadow-md transition flex items-center gap-2 select-none">
-          📁 Upload QR
-        </label>
-        <input id="qr-upload" type="file" accept="image/*" class="hidden" />
-      </div>
+
+<!-- QR Upload Button -->
+<input type="file" accept="image/*" id="uploadQRInput" style="display: none;">
+<button onclick="document.getElementById('uploadQRInput').click()">📷 Upload QR</button>
+
+
+
+
+
+
+      <button id="btnStopScan" class="bg-red-600 hover:bg-red-700 text-white py-3 px-8 rounded-xl font-semibold shadow-md transition hidden">
+        ✖ បញ្ឈប់ Scan
+      </button>
+    </div>
+
+    <div class="flex items-center gap-3 mt-6 max-w-md w-full">
+      <label for="month-filter" class="font-semibold">ជ្រើសរើស ខែ-ឆ្នាំ:</label>
+      <select id="month-filter" class="border rounded px-3 py-2 w-full">
+        <option value="">ទាំងអស់</option>
+      </select>
     </div>
 
     <video id="qr-video" autoplay muted playsinline></video>
-    <img id="upload-preview" alt="Preview QR upload image" />
 
-    <div id="customerContent" class="w-full mt-6 text-gray-700 min-h-[160px] text-lg leading-relaxed select-text p-4 rounded-xl bg-indigo-50 shadow-inner">
-      <p class="text-center text-gray-400 italic">សូមស្វែងរកព័ត៌មានអតិថិជន</p>
+    <div id="results" class="w-full mt-8 text-gray-600 min-h-[160px] p-4 rounded-xl bg-indigo-50 shadow-inner overflow-auto max-h-96">
+      <p class="text-center text-gray-400 italic">សូមបញ្ចូល Customer ID ឬ Scan QR ដើម្បីមើល Invoice</p>
     </div>
 
-    <div id="actionButtons" class="mt-8 w-full flex justify-center gap-6 hidden">
-      <button id="printBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl shadow-md font-semibold transition" aria-label="បោះពុម្ព">
-        🖨️ បោះពុម្ព
-      </button>
-      <button id="pdfBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl shadow-md font-semibold transition" aria-label="ទាញយក PDF">
-        ⬇️ ទាញយក PDF
-      </button>
+    <div id="cart-summary" class="mt-6 bg-white rounded-lg shadow p-4 w-full max-w-md text-gray-700 hidden">
+      <div class="flex justify-end w-full mt-4">
+        <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-xl font-semibold shadow-md">
+          📤 បញ្ជូនចេញ CSV
+        </button>
+      </div>
+
+      <h3 class="text-lg font-bold mb-2">សង្ខេប Invoice</h3>
+      <p>ទឹកប្រើសរុប៖ <span id="total-water-used">0</span> លីត្រ</p>
+      <p>តម្លៃទឹកសរុប៖ <span id="total-water-price">0</span> ៛</p>
+      <p>តម្លៃភ្លើងសរុប៖ <span id="total-electric-price">0</span> ៛</p>
+    </div>
+
+    <div class="mt-8 w-full max-w-4xl">
+      <canvas id="invoiceChart"></canvas>
+    </div>
+
+
+
+<!-- Chat Toggle Button (Floating Icon) -->
+<button id="chat-toggle"
+  class="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg focus:outline-none transition-all duration-300 z-50 animate-bounce">
+  <!-- Icon Chat Bubble (Heroicons) -->
+  <svg id="chat-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 transition-transform duration-300" fill="none"
+    viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.77 9.77 0 01-4-.837l-4.2.837.838-4.2A8.963 8.963 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+  </svg>
+</button>
+<!-- Chat Box -->
+<div id="chat-box"
+  class="fixed bottom-20 right-4 w-[90vw] max-w-md bg-white border border-gray-300 rounded-xl shadow-lg hidden flex flex-col z-50 sm:w-80 transition-all duration-300 transform opacity-0 scale-95">
+  <!-- Header -->
+  <div class="bg-blue-600 text-white px-4 py-3 rounded-t-xl">
+    <h3 class="text-lg font-semibold">Chat</h3>
+  </div>
+
+  <!-- Messages -->
+  <div id="chat-messages" class="p-4 flex-1 overflow-y-auto space-y-2 text-sm max-h-60">
+    <div class="bg-gray-100 p-2 rounded-md text-left">សួស្ដី! តើខ្ញុំអាចជួយអ្វីបានខ្លះ?</div>
+  </div>
+
+  <!-- Input -->
+  <div class="p-3 border-t border-gray-200 flex gap-2">
+    <input id="chat-input" type="text" placeholder="សរសេរ​សារ..."
+      class="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+    <button id="send-button"
+      class="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm">Send</button>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+  </div>
+
+  <!-- Modal for invoice detail -->
+  <div id="invoice-modal">
+    <div class="modal-content">
+      <span id="modal-close-btn" class="close-btn">&times;</span>
+      <h2 class="text-xl font-bold mb-4 text-center text-blue-700">លម្អិតវិក្កយបត្រ</h2>
+      <div id="modal-content" class="text-gray-700"></div>
+      <div class="flex justify-end mt-6 gap-3">
+        <button id="modal-print-btn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-xl font-semibold shadow-md">
+          🖨️ បោះពុម្ព
+        </button>
+        <button id="modal-close-btn-2" class="bg-gray-400 hover:bg-gray-500 text-white py-2 px-6 rounded-xl font-semibold shadow-md">
+          បិទ
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- Loading overlay -->
-  <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 hidden">
-    <div class="flex flex-col items-center space-y-4 text-white font-semibold text-lg">
-      <svg class="animate-spin h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-      </svg>
-      <div>កំពុងផ្ទុក...</div>
-    </div>
-  </div>
+
+
+
+
+
+
+
+
+
+
+
+
 
 <script>
-  // Firebase config (replace with your own Firebase config)
+  // Firebase config
   const firebaseConfig = {
     apiKey: "AIzaSyD61vUNw4gFmzR4zfS8s7FVIzsJe9nXQHQ",
     authDomain: "home-invoice-e1f43.firebaseapp.com",
@@ -105,259 +208,590 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
-  const loadingOverlay = document.getElementById("loadingOverlay");
-  const customerContent = document.getElementById("customerContent");
-  const actionButtons = document.getElementById("actionButtons");
-  const printBtn = document.getElementById("printBtn");
-  const pdfBtn = document.getElementById("pdfBtn");
   const customerIdInput = document.getElementById("customer-id");
+  const btnSearch = document.getElementById("btnSearch");
+  const btnScan = document.getElementById("btnScan");
+  const btnStopScan = document.getElementById("btnStopScan");
   const qrVideo = document.getElementById("qr-video");
-  const uploadPreview = document.getElementById("upload-preview");
+  const resultsDiv = document.getElementById("results");
 
-  let currentCustomer = null;
+  const monthFilter = document.getElementById("month-filter");
+  const cartSummary = document.getElementById("cart-summary");
+  const totalWaterUsedSpan = document.getElementById("total-water-used");
+  const totalWaterPriceSpan = document.getElementById("total-water-price");
+  const totalElectricPriceSpan = document.getElementById("total-electric-price");
+
+  // Modal elements
+  const invoiceModal = document.getElementById("invoice-modal");
+  const modalContentDiv = document.getElementById("modal-content");
+  const modalCloseBtn = document.getElementById("modal-close-btn");
+  const modalCloseBtn2 = document.getElementById("modal-close-btn-2");
+  const modalPrintBtn = document.getElementById("modal-print-btn");
+
+  let invoiceChart = null;
   let scanning = false;
   let videoStream = null;
+  let currentInvoices = [];
 
-  // Sounds (replace URLs or local files as needed)
-  const audioSuccess = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
-  const audioError = new Audio("https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg");
-
-  function playSuccessSound() {
-    audioSuccess.play().catch(() => {});
-  }
-  function playErrorSound() {
-    audioError.play().catch(() => {});
-  }
-
-  function showLoading(show = true) {
-    loadingOverlay.style.display = show ? "flex" : "none";
-  }
-
-  function getIDfromURL() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("id");
-  }
-
-  function renderCustomer(data) {
-    customerContent.innerHTML = `
-      <p><span class="font-bold">អត្តសញ្ញាណ:</span> ${data.id || "-"}</p>
-      <p><span class="font-bold">ឈ្មោះ:</span> ${data.name || "-"}</p>
-      <p><span class="font-bold">លេខបន្ទប់:</span> ${data.room || "-"}</p>
-      <p><span class="font-bold">ទូរស័ព្ទ:</span> ${data.phone || "-"}</p>
-      ${data.phone2 ? `<p><span class="font-bold">ទូរស័ព្ទ 2:</span> ${data.phone2}</p>` : ""}
-    `;
-    actionButtons.classList.remove("hidden");
-    currentCustomer = data;
-    playSuccessSound();
-  }
-
-  async function loadCustomer(id) {
-    if (!id) {
-      customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ មិនមាន ID នៅក្នុង URL</p>`;
-      actionButtons.classList.add("hidden");
-      playErrorSound();
-      return;
-    }
-    showLoading(true);
-    try {
-      const doc = await db.collection("customers").doc(id).get();
-      if (doc.exists) {
-        renderCustomer({ id, ...doc.data() });
-      } else {
-        customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ មិនមានអតិថិជននេះទេ</p>`;
-        actionButtons.classList.add("hidden");
-        playErrorSound();
-      }
-    } catch (e) {
-      console.error(e);
-      customerContent.innerHTML = `<p class="text-red-600 font-semibold text-center">❌ កើតមានកំហុសក្នុងការទាញទិន្នន័យ</p>`;
-      actionButtons.classList.add("hidden");
-      playErrorSound();
-    } finally {
-      showLoading(false);
-    }
-  }
-
-  function printCustomerInfo() {
-    if (!currentCustomer) {
-      alert("សូមទាញយកព័ត៌មានអតិថិជនមុនពេលបោះពុម្ព");
-      return;
-    }
-    const win = window.open("", "", "width=600,height=400");
-    win.document.write("<html><head><title>បោះពុម្ពព័ត៌មានអតិថិជន</title></head><body>");
-    win.document.write(`<pre style="font-family: Kanit, sans-serif; font-size: 18px; padding: 20px;">
-អត្តសញ្ញាណ: ${currentCustomer.id}
-ឈ្មោះ: ${currentCustomer.name || '-'}
-លេខបន្ទប់: ${currentCustomer.room || '-'}
-ទូរស័ព្ទ: ${currentCustomer.phone || '-'}
-${currentCustomer.phone2 ? 'ទូរស័ព្ទ 2: ' + currentCustomer.phone2 : ''}
-</pre>`);
-    win.document.write("</body></html>");
-    win.document.close();
-    win.focus();
-    win.print();
-    win.close();
-  }
-
-  async function downloadPDF() {
-    if (!currentCustomer) {
-      alert("សូមទាញយកព័ត៌មានអតិថិជនមុនពេលទាញយក PDF");
-      return;
-    }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-
-    doc.setFontSize(16);
-    doc.text("ព័ត៌មានអតិថិជន", 20, 20);
-
-    doc.setFontSize(14);
-    doc.text(`អត្តសញ្ញាណ: ${currentCustomer.id}`, 20, 40);
-    doc.text(`ឈ្មោះ: ${currentCustomer.name || '-'}`, 20, 50);
-    doc.text(`លេខបន្ទប់: ${currentCustomer.room || '-'}`, 20, 60);
-    doc.text(`ទូរស័ព្ទ: ${currentCustomer.phone || '-'}`, 20, 70);
-    if(currentCustomer.phone2) {
-      doc.text(`ទូរស័ព្ទ 2: ${currentCustomer.phone2}`, 20, 80);
-    }
-
-    doc.save(`Customer_${currentCustomer.id}.pdf`);
-  }
-
-  // Event bindings
-  printBtn.addEventListener("click", printCustomerInfo);
-  pdfBtn.addEventListener("click", downloadPDF);
-
-  document.getElementById("btnSearch").addEventListener("click", () => {
+  btnSearch.addEventListener("click", () => {
     const id = customerIdInput.value.trim();
     if (!id) {
-      alert("សូមបញ្ចូលលេខ ID មុនពេលស្វែងរក");
+      alert("សូមបញ្ចូល Customer ID មុនពេលស្វែងរក");
       return;
     }
-    history.replaceState(null, '', `?id=${encodeURIComponent(id)}`);
-    loadCustomer(id);
+    loadInvoicesByCustomerID(id);
   });
 
-  // QR Upload
-  document.getElementById("qr-upload").addEventListener("change", e => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        uploadPreview.src = img.src;
-        uploadPreview.style.display = "block";
-
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, canvas.width, canvas.height);
-        if (code && code.data) {
-          let scannedData = code.data.trim();
-          try {
-            const url = new URL(scannedData);
-            if (url.searchParams.has("id")) {
-              scannedData = url.searchParams.get("id");
-            }
-          } catch {}
-
-          customerIdInput.value = scannedData;
-          history.replaceState(null, '', `?id=${encodeURIComponent(scannedData)}`);
-          loadCustomer(scannedData);
-        } else {
-          alert("មិនអាចអាន QR បានទេ");
-          playErrorSound();
-        }
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+  btnScan.addEventListener("click", () => {
+    if (scanning) return;
+    startScan();
   });
 
-  // QR Live Scan with scanning line animation
-  document.getElementById("btnScan").addEventListener("click", async () => {
-    if (scanning) return; // already scanning
+  btnStopScan.addEventListener("click", () => {
+    stopScan();
+  });
 
-    try {
-      videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      qrVideo.srcObject = videoStream;
-      qrVideo.style.display = "block";
-      scanning = true;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+const uploadQRInput = document.getElementById("uploadQRInput");
+
+uploadQRInput.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
       const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
       const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
 
-      const scanLoop = () => {
-        if (!scanning) return;
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "attemptBoth",
+      });
 
-        if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
-          canvas.width = qrVideo.videoWidth;
-          canvas.height = qrVideo.videoHeight;
-          ctx.drawImage(qrVideo, 0, 0, canvas.width, canvas.height);
+     if (code) {
+  // code.data គឺជា string URL ឧទាហរណ៍ https://anrachana.github.io/Nib_web/?id=C001
+  try {
+    const url = new URL(code.data.trim());
+    const id = url.searchParams.get("id"); // ទាញ 'id' ពី URL query string
 
-          // Draw scanning line animation
-          const time = Date.now() / 10;
-          const lineY = (time % canvas.height);
-
-          ctx.strokeStyle = "rgba(0, 123, 255, 0.7)";
-          ctx.lineWidth = 4;
-          ctx.beginPath();
-          ctx.moveTo(0, lineY);
-          ctx.lineTo(canvas.width, lineY);
-          ctx.stroke();
-
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, canvas.width, canvas.height);
-
-          if (code && code.data) {
-            scanning = false;
-            qrVideo.style.display = "none";
-            if (videoStream) {
-              videoStream.getTracks().forEach(track => track.stop());
-              videoStream = null;
-            }
-
-            let scannedData = code.data.trim();
-            try {
-              const url = new URL(scannedData);
-              if (url.searchParams.has("id")) {
-                scannedData = url.searchParams.get("id");
-              }
-            } catch {}
-
-            customerIdInput.value = scannedData;
-            history.replaceState(null, '', `?id=${encodeURIComponent(scannedData)}`);
-            loadCustomer(scannedData);
-            return;
-          }
-        }
-        requestAnimationFrame(scanLoop);
-      };
-
-      requestAnimationFrame(scanLoop);
-    } catch (err) {
-      alert("មិនអាចចូលប្រើកាមេរ៉ា");
-      console.error(err);
-      playErrorSound();
-    }
-  });
-
-  // On page load auto get ID from URL and load customer
-  window.addEventListener("DOMContentLoaded", () => {
-    const id = getIDfromURL();
     if (id) {
       customerIdInput.value = id;
-      loadCustomer(id);
+      loadInvoicesByCustomerID(id);
     } else {
-      customerContent.innerHTML = `<p class="text-gray-400 text-center italic">សូមស្វែងរកព័ត៌មានអតិថិជន</p>`;
-      actionButtons.classList.add("hidden");
+      alert("❌ មិនអាចរក parameter id ពី QR Code បានទេ។ សូមព្យាយាមម្ដងទៀត។");
+    }
+  } catch (err) {
+    // ប្រសិនបើ code.data មិនមែនជា URL ត្រឹមត្រូវ
+    customerIdInput.value = code.data.trim();
+    loadInvoicesByCustomerID(code.data.trim());
+  }
+}
+
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  function exportCSV() {
+    let data = monthFilter.value
+      ? currentInvoices.filter(inv => inv.month === monthFilter.value)
+      : currentInvoices;
+
+    if (!data || data.length === 0) {
+      alert("❌ មិនមានទិន្នន័យសម្រាប់បញ្ជូនចេញទេ។");
+      return;
+    }
+
+    let csv = "Invoice Number,Month,Water Old,Water New,Water Used,Water Price,Electric Old,Electric New,Electric Used,Electric Price,Total Price\n";
+
+    data.forEach(inv => {
+      const total = (Number(inv.priceWater || 0) + Number(inv.priceElectric || 0));
+      csv += `${inv.invoiceNumber || '-'},${inv.month || '-'},${inv.waterOld || '-'},${inv.waterNew || '-'},${inv.waterUsed || '-'},${inv.priceWater || 0},${inv.electricOld || '-'},${inv.electricNew || '-'},${inv.electricUsed || '-'},${inv.priceElectric || 0},${total}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const fileName = `Invoices_${customerIdInput.value || "unknown"}_${monthFilter.value || "all"}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+  }
+
+  async function loadInvoicesByCustomerID(customerID) {
+    resultsDiv.innerHTML = `<p class="text-center text-gray-500 italic">កំពុងផ្ទុក...</p>`;
+    try {
+      const querySnapshot = await db.collection("invoices")
+        .where("customerID", "==", customerID)
+        .orderBy("timestamp", "desc")
+        .limit(50)
+        .get();
+
+      if (querySnapshot.empty) {
+        resultsDiv.innerHTML = `<p class="text-center text-red-600 font-semibold">មិនមាន Invoice សម្រាប់ Customer ID: <strong>${customerID}</strong></p>`;
+        monthFilter.innerHTML = '<option value="">ទាំងអស់</option>';
+        cartSummary.style.display = 'none';
+        currentInvoices = [];
+        updateChart([]);
+        return;
+      }
+
+      currentInvoices = [];
+      let monthSet = new Set();
+
+      let html = `
+        <h2 class="text-xl font-bold mb-4 text-center">Invoice របស់ Customer ID: ${customerID}</h2>
+        <div class="overflow-auto max-h-96">
+        <table id="invoice-table" class="w-full border border-gray-300 text-sm rounded cursor-pointer">
+          <thead class="bg-blue-200 sticky top-0">
+            <tr>
+              <th class="border border-gray-300 px-2 py-1">Invoice Number</th>
+              <th class="border border-gray-300 px-2 py-1">ខែ-ឆ្នាំ</th>
+              <th class="border border-gray-300 px-2 py-1">ទឹកចាស់</th>
+              <th class="border border-gray-300 px-2 py-1">ទឹកថ្មី</th>
+              <th class="border border-gray-300 px-2 py-1">ទឹកប្រើ</th>
+              <th class="border border-gray-300 px-2 py-1">តម្លៃទឹក (៛)</th>
+              <th class="border border-gray-300 px-2 py-1">ភ្លើងចាស់</th>
+              <th class="border border-gray-300 px-2 py-1">ភ្លើងថ្មី</th>
+              <th class="border border-gray-300 px-2 py-1">ភ្លើងប្រើ</th>
+              <th class="border border-gray-300 px-2 py-1">តម្លៃភ្លើង (៛)</th>
+              <th class="border border-gray-300 px-2 py-1">សរុប (៛)</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      querySnapshot.forEach(doc => {
+        const d = doc.data();
+        currentInvoices.push(d);
+        if(d.month) monthSet.add(d.month);
+
+        html += `
+          <tr class="text-center border border-gray-300 hover:bg-blue-100" data-invoice='${encodeURIComponent(JSON.stringify(d))}'>
+            <td class="border border-gray-300 px-1 py-0.5">${d.invoiceNumber || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${d.month || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${d.waterOld || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${d.waterNew || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${d.waterUsed || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${(d.priceWater || 0).toLocaleString()}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${d.electricOld || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${d.electricNew || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${d.electricUsed || '-'}</td>
+            <td class="border border-gray-300 px-1 py-0.5">${(d.priceElectric || 0).toLocaleString()}</td>
+            <td class="border border-gray-300 px-1 py-0.5 font-bold">${((d.priceWater || 0) + (d.priceElectric || 0)).toLocaleString()}</td>
+          </tr>
+        `;
+      });
+
+      html += "</tbody></table></div>";
+
+      resultsDiv.innerHTML = html;
+
+      // Build filter dropdown
+      let optionsHTML = `<option value="">ទាំងអស់</option>`;
+      Array.from(monthSet).sort().forEach(month => {
+        optionsHTML += `<option value="${month}">${month}</option>`;
+      });
+      monthFilter.innerHTML = optionsHTML;
+      cartSummary.style.display = 'block';
+
+      updateCartSummary();
+      updateChart(currentInvoices);
+
+      attachModalOpenOnRowClick();
+
+    } catch (error) {
+      console.error("Error loading invoices:", error);
+      resultsDiv.innerHTML = `<p class="text-center text-red-600 font-semibold">❌ កំហុសក្នុងការទាញទិន្នន័យ: ${error.message}</p>`;
+      monthFilter.innerHTML = '<option value="">ទាំងអស់</option>';
+      cartSummary.style.display = 'none';
+      currentInvoices = [];
+      updateChart([]);
+    }
+  }
+
+  monthFilter.addEventListener("change", () => {
+    filterInvoicesByMonth(monthFilter.value);
+  });
+
+  function filterInvoicesByMonth(month) {
+    const tbody = document.querySelector("#invoice-table tbody");
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    let filtered = currentInvoices.filter(inv => {
+      return month === '' || inv.month === month;
+    });
+
+    filtered.forEach(d => {
+      const tr = document.createElement("tr");
+      tr.className = "text-center border border-gray-300 hover:bg-blue-100";
+      tr.dataset.invoice = encodeURIComponent(JSON.stringify(d));
+      tr.innerHTML = `
+        <td class="border border-gray-300 px-1 py-0.5">${d.invoiceNumber || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${d.month || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${d.waterOld || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${d.waterNew || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${d.waterUsed || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${(d.priceWater || 0).toLocaleString()}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${d.electricOld || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${d.electricNew || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${d.electricUsed || '-'}</td>
+        <td class="border border-gray-300 px-1 py-0.5">${(d.priceElectric || 0).toLocaleString()}</td>
+        <td class="border border-gray-300 px-1 py-0.5 font-bold">${((d.priceWater || 0) + (d.priceElectric || 0)).toLocaleString()}</td>
+      `;
+      tr.addEventListener("click", () => {
+        openInvoiceModal(d);
+      });
+      tbody.appendChild(tr);
+    });
+
+    updateCartSummary(filtered);
+    updateChart(filtered);
+  }
+
+  function updateCartSummary(invoices = null) {
+    const data = invoices || currentInvoices;
+    if (!data || data.length === 0) {
+      cartSummary.style.display = 'none';
+      return;
+    }
+    cartSummary.style.display = 'block';
+
+    let totalWaterUsed = 0;
+    let totalWaterPrice = 0;
+    let totalElectricPrice = 0;
+
+    data.forEach(inv => {
+      totalWaterUsed += Number(inv.waterUsed || 0);
+      totalWaterPrice += Number(inv.priceWater || 0);
+      totalElectricPrice += Number(inv.priceElectric || 0);
+    });
+
+    totalWaterUsedSpan.textContent = totalWaterUsed.toLocaleString();
+    totalWaterPriceSpan.textContent = totalWaterPrice.toLocaleString();
+    totalElectricPriceSpan.textContent = totalElectricPrice.toLocaleString();
+  }
+
+  function updateChart(invoices) {
+    const labels = invoices.map(i => i.month || '');
+    const waterPrices = invoices.map(i => Number(i.priceWater || 0));
+    const electricPrices = invoices.map(i => Number(i.priceElectric || 0));
+    const totalPrices = invoices.map(i => waterPrices[invoices.indexOf(i)] + electricPrices[invoices.indexOf(i)]);
+
+    if (invoiceChart) invoiceChart.destroy();
+
+    const ctx = document.getElementById("invoiceChart").getContext("2d");
+    invoiceChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "តម្លៃទឹក (៛)",
+            data: waterPrices,
+            backgroundColor: "rgba(59, 130, 246, 0.7)",
+            borderColor: "rgba(59, 130, 246, 1)",
+            borderWidth: 1,
+          },
+          {
+            label: "តម្លៃភ្លើង (៛)",
+            data: electricPrices,
+            backgroundColor: "rgba(34, 197, 94, 0.7)",
+            borderColor: "rgba(34, 197, 94, 1)",
+            borderWidth: 1,
+          },
+          {
+            label: "សរុប (៛)",
+            data: totalPrices,
+            backgroundColor: "rgba(249, 115, 22, 0.7)",
+            borderColor: "rgba(249, 115, 22, 1)",
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: true },
+        },
+        interaction: {
+          mode: 'nearest',
+          intersect: false
+        }
+      },
+    });
+  }
+
+  // QR code scan logic
+  function startScan() {
+    scanning = true;
+    btnScan.classList.add("hidden");
+    btnStopScan.classList.remove("hidden");
+    qrVideo.style.display = "block";
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(stream => {
+        videoStream = stream;
+        qrVideo.srcObject = stream;
+        qrVideo.setAttribute("playsinline", true);
+        qrVideo.play();
+        requestAnimationFrame(tick);
+      }).catch(err => {
+        alert("មិនអាចប្រើកាមេរ៉ា បានទេ: " + err.message);
+        stopScan();
+      });
+  }
+
+  function stopScan() {
+    scanning = false;
+    btnScan.classList.remove("hidden");
+    btnStopScan.classList.add("hidden");
+    qrVideo.style.display = "none";
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      videoStream = null;
+    }
+  }
+
+  function tick() {
+    if (!scanning) return;
+    if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
+      const canvas = document.createElement("canvas");
+      canvas.width = qrVideo.videoWidth;
+      canvas.height = qrVideo.videoHeight;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(qrVideo, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "attemptBoth",
+      });
+      if (code) {
+        // Found QR code content
+        customerIdInput.value = code.data.trim();
+        stopScan();
+        loadInvoicesByCustomerID(code.data.trim());
+        return;
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // Modal logic
+  function openInvoiceModal(invoice) {
+    modalContentDiv.innerHTML = `
+      <p><strong>Invoice Number:</strong> ${invoice.invoiceNumber || '-'}</p>
+      <p><strong>ខែ-ឆ្នាំ:</strong> ${invoice.month || '-'}</p>
+      <table class="w-full border border-gray-300 mt-4 text-sm">
+        <thead>
+          <tr class="bg-blue-200 text-center">
+            <th class="border border-gray-300 px-2 py-1">ទឹកចាស់</th>
+            <th class="border border-gray-300 px-2 py-1">ទឹកថ្មី</th>
+            <th class="border border-gray-300 px-2 py-1">ទឹកប្រើ</th>
+            <th class="border border-gray-300 px-2 py-1">តម្លៃទឹក (៛)</th>
+            <th class="border border-gray-300 px-2 py-1">ភ្លើងចាស់</th>
+            <th class="border border-gray-300 px-2 py-1">ភ្លើងថ្មី</th>
+            <th class="border border-gray-300 px-2 py-1">ភ្លើងប្រើ</th>
+            <th class="border border-gray-300 px-2 py-1">តម្លៃភ្លើង (៛)</th>
+            <th class="border border-gray-300 px-2 py-1">សរុប (៛)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="text-center">
+            <td class="border border-gray-300 px-2 py-1">${invoice.waterOld || '-'}</td>
+            <td class="border border-gray-300 px-2 py-1">${invoice.waterNew || '-'}</td>
+            <td class="border border-gray-300 px-2 py-1">${invoice.waterUsed || '-'}</td>
+            <td class="border border-gray-300 px-2 py-1">${(Number(invoice.priceWater) || 0).toLocaleString()}</td>
+            <td class="border border-gray-300 px-2 py-1">${invoice.electricOld || '-'}</td>
+            <td class="border border-gray-300 px-2 py-1">${invoice.electricNew || '-'}</td>
+            <td class="border border-gray-300 px-2 py-1">${invoice.electricUsed || '-'}</td>
+            <td class="border border-gray-300 px-2 py-1">${(Number(invoice.priceElectric) || 0).toLocaleString()}</td>
+            <td class="border border-gray-300 px-2 py-1 font-bold">${((Number(invoice.priceWater) || 0) + (Number(invoice.priceElectric) || 0)).toLocaleString()}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    invoiceModal.style.display = "flex";
+    invoiceModal.dataset.currentInvoice = encodeURIComponent(JSON.stringify(invoice));
+  }
+
+  function closeInvoiceModal() {
+    invoiceModal.style.display = "none";
+    invoiceModal.dataset.currentInvoice = null;
+  }
+
+  modalCloseBtn.addEventListener("click", closeInvoiceModal);
+  modalCloseBtn2.addEventListener("click", closeInvoiceModal);
+
+  modalPrintBtn.addEventListener("click", () => {
+    if (!invoiceModal.dataset.currentInvoice) return;
+    const invoice = JSON.parse(decodeURIComponent(invoiceModal.dataset.currentInvoice));
+    printInvoice(invoice);
+  });
+
+  function printInvoice(invoice) {
+    // Create printable window content
+    const printWindow = window.open('', '', 'width=700,height=600');
+    const totalPrice = (Number(invoice.priceWater || 0) + Number(invoice.priceElectric || 0)).toLocaleString();
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Invoice</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h2 { text-align: center; color: #2563eb; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+            th { background-color: #bfdbfe; }
+            tfoot td { font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h2>វិក្កយបត្រ Invoice</h2>
+          <p><strong>Invoice Number:</strong> ${invoice.invoiceNumber || '-'}</p>
+          <p><strong>ខែ-ឆ្នាំ:</strong> ${invoice.month || '-'}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>ទឹកចាស់</th><th>ទឹកថ្មី</th><th>ទឹកប្រើ</th><th>តម្លៃទឹក (៛)</th>
+                <th>ភ្លើងចាស់</th><th>ភ្លើងថ្មី</th><th>ភ្លើងប្រើ</th><th>តម្លៃភ្លើង (៛)</th>
+                <th>សរុប (៛)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${invoice.waterOld || '-'}</td>
+                <td>${invoice.waterNew || '-'}</td>
+                <td>${invoice.waterUsed || '-'}</td>
+                <td>${(Number(invoice.priceWater) || 0).toLocaleString()}</td>
+                <td>${invoice.electricOld || '-'}</td>
+                <td>${invoice.electricNew || '-'}</td>
+                <td>${invoice.electricUsed || '-'}</td>
+                <td>${(Number(invoice.priceElectric) || 0).toLocaleString()}</td>
+                <td>${totalPrice}</td>
+              </tr>
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  }
+
+  // Attach click event on table rows for modal open
+  function attachModalOpenOnRowClick() {
+    const rows = document.querySelectorAll("#invoice-table tbody tr");
+    rows.forEach(row => {
+      row.onclick = () => {
+        const invoiceEncoded = row.dataset.invoice;
+        const invoice = JSON.parse(decodeURIComponent(invoiceEncoded));
+        openInvoiceModal(invoice);
+      };
+    });
+  }
+</script>
+<script>
+  const toggleBtn = document.getElementById("chat-toggle");
+  const chatBox = document.getElementById("chat-box");
+  const chatInput = document.getElementById("chat-input");
+  const sendButton = document.getElementById("send-button");
+  const chatMessages = document.getElementById("chat-messages");
+
+  let isOpen = false;
+
+  toggleBtn.addEventListener("click", () => {
+    isOpen = !isOpen;
+    if (isOpen) {
+      chatBox.classList.remove("hidden");
+      // Add animation classes
+      requestAnimationFrame(() => {
+        chatBox.classList.remove("opacity-0", "scale-95");
+        chatBox.classList.add("opacity-100", "scale-100");
+      });
+      chatInput.focus();
+    } else {
+      // Add closing animation
+      chatBox.classList.remove("opacity-100", "scale-100");
+      chatBox.classList.add("opacity-0", "scale-95");
+
+      // Hide after animation ends
+      setTimeout(() => {
+        if (!isOpen) chatBox.classList.add("hidden");
+      }, 300); // Match duration-300
     }
   });
+
+  function addMessage(message, sender = "user") {
+    const msgDiv = document.createElement("div");
+    msgDiv.classList.add("p-2", "rounded-md", "text-sm", "max-w-[75%]");
+    if (sender === "user") {
+      msgDiv.classList.add("bg-blue-100", "self-end", "text-right", "ml-auto");
+    } else {
+      msgDiv.classList.add("bg-gray-100", "text-left");
+    }
+    msgDiv.textContent = message;
+    chatMessages.appendChild(msgDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  sendButton.addEventListener("click", () => {
+    const message = chatInput.value.trim();
+    if (message) {
+      addMessage(message, "user");
+      chatInput.value = "";
+      setTimeout(() => {
+        addMessage("សូមអរគុណ! យើងនឹងឆ្លើយតបឆាប់ៗនេះ។", "bot");
+      }, 600);
+    }
+  });
+
+  chatInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") sendButton.click();
+  });
 </script>
+
+
+
 
 </body>
 </html>
